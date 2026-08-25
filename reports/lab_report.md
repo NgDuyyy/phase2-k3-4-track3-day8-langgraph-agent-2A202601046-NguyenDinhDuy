@@ -1,57 +1,4 @@
-"""Report generation helper.
-
-TODO(student): implement report rendering using MetricsReport data
-and the template in reports/lab_report_template.md.
-"""
-
-from __future__ import annotations
-
-from pathlib import Path
-
-from .metrics import MetricsReport
-
-
-def render_report(metrics: MetricsReport) -> str:
-    """Render a complete lab report from metrics data."""
-    scenario_rows = []
-    for s in metrics.scenario_metrics:
-        success_icon = "PASS" if s.success else "FAIL"
-        row = (
-            f"| `{s.scenario_id}` | `{s.expected_route}` | `{s.actual_route}` | "
-            f"{success_icon} | {s.nodes_visited} | {s.retry_count} | {s.interrupt_count} |"
-        )
-        scenario_rows.append(row)
-    scenarios_table = "\n".join(scenario_rows)
-
-    mermaid_diagram = """```mermaid
-graph TD
-    START([START]) --> intake[intake]
-    intake --> classify[classify]
-    
-    classify -->|simple| answer[answer]
-    classify -->|tool| tool[tool]
-    classify -->|missing_info| clarify[clarify]
-    classify -->|risky| risky_action[risky_action]
-    classify -->|error| retry[retry]
-    
-    risky_action --> approval[approval]
-    approval -->|approved| tool
-    approval -->|rejected| clarify
-    
-    tool --> evaluate[evaluate]
-    evaluate -->|success| answer
-    evaluate -->|needs_retry| retry
-    
-    retry -->|attempt < max| tool
-    retry -->|attempt >= max| dead_letter[dead_letter]
-    
-    answer --> finalize[finalize]
-    clarify --> finalize
-    dead_letter --> finalize
-    finalize --> END([END])
-```"""
-
-    report_md = f"""# Day 08 Lab Report — LangGraph Agentic Orchestration
+# Day 08 Lab Report — LangGraph Agentic Orchestration
 
 ## 1. Team / student
 
@@ -80,7 +27,33 @@ The support-ticket agent is built as a cyclic, stateful graph (`StateGraph`) wit
 11. `finalize`: Emits final audit events before workflow termination.
 
 ### Mermaid Graph Diagram
-{mermaid_diagram}
+```mermaid
+graph TD
+    START([START]) --> intake[intake]
+    intake --> classify[classify]
+    
+    classify -->|simple| answer[answer]
+    classify -->|tool| tool[tool]
+    classify -->|missing_info| clarify[clarify]
+    classify -->|risky| risky_action[risky_action]
+    classify -->|error| retry[retry]
+    
+    risky_action --> approval[approval]
+    approval -->|approved| tool
+    approval -->|rejected| clarify
+    
+    tool --> evaluate[evaluate]
+    evaluate -->|success| answer
+    evaluate -->|needs_retry| retry
+    
+    retry -->|attempt < max| tool
+    retry -->|attempt >= max| dead_letter[dead_letter]
+    
+    answer --> finalize[finalize]
+    clarify --> finalize
+    dead_letter --> finalize
+    finalize --> END([END])
+```
 
 ---
 
@@ -110,17 +83,23 @@ The support-ticket agent is built as a cyclic, stateful graph (`StateGraph`) wit
 ## 4. Scenario results
 
 ### Metrics Summary
-- **Total Scenarios**: {metrics.total_scenarios}
-- **Success Rate**: {metrics.success_rate:.2%}
-- **Average Nodes Visited**: {metrics.avg_nodes_visited:.2f}
-- **Total Retries**: {metrics.total_retries}
-- **Total Interrupts / Approvals**: {metrics.total_interrupts}
-- **Resume / Persistence Success**: {metrics.resume_success}
+- **Total Scenarios**: 7
+- **Success Rate**: 100.00%
+- **Average Nodes Visited**: 19.29
+- **Total Retries**: 9
+- **Total Interrupts / Approvals**: 6
+- **Resume / Persistence Success**: False
 
 ### Scenario Execution Table
 | Scenario ID | Expected Route | Actual Route | Status | Nodes Visited | Retries | Interrupts |
 |---|---|---|:---:|---:|---:|---:|
-{scenarios_table}
+| `S01_simple` | `simple` | `simple` | PASS | 12 | 0 | 0 |
+| `S02_tool` | `tool` | `tool` | PASS | 18 | 0 | 0 |
+| `S03_missing` | `missing_info` | `missing_info` | PASS | 12 | 0 | 0 |
+| `S04_risky` | `risky` | `risky` | PASS | 24 | 0 | 3 |
+| `S05_error` | `error` | `error` | PASS | 30 | 6 | 0 |
+| `S06_delete` | `risky` | `risky` | PASS | 24 | 0 | 3 |
+| `S07_dead_letter` | `error` | `error` | PASS | 15 | 3 | 0 |
 
 ---
 
@@ -142,7 +121,7 @@ The support-ticket agent is built as a cyclic, stateful graph (`StateGraph`) wit
 ## 6. Persistence & recovery evidence
 
 - **Checkpointer**: Integrated with `SqliteSaver` (`langgraph-checkpoint-sqlite`) in WAL mode.
-- **Thread Isolation**: Execution uses deterministic `thread_id` (e.g. `thread-{{scenario_id}}`).
+- **Thread Isolation**: Execution uses deterministic `thread_id` (e.g. `thread-{scenario_id}`).
 - **State History**: Checkpoints survive restarts and allow time-travel replay & crash recovery.
 
 ---
@@ -162,12 +141,3 @@ The support-ticket agent is built as a cyclic, stateful graph (`StateGraph`) wit
 2. **Exponential Backoff**: Add async delays and jitter inside retry nodes.
 3. **PostgreSQL Checkpointer Pool**: Migrate to `AsyncPostgresSaver` for high-throughput scaling.
 4. **Interactive Dashboard**: Build a Streamlit / FastUI interface for human reviews.
-"""
-    return report_md.strip() + "\n"
-
-
-def write_report(metrics: MetricsReport, output_path: str | Path) -> None:
-    """Write the rendered report to a file."""
-    path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_report(metrics), encoding="utf-8")
